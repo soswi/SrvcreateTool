@@ -1,5 +1,8 @@
 from pathlib import Path
 import importlib
+import sys
+
+from utils.utilities import reminder, reminder_update
 
 MODULES_PATH = Path(__file__).resolve().parent / "modules"
 
@@ -10,6 +13,7 @@ def menu():
         return
 
     print("\033[96m=== MAIN MENU ===\033[0m")
+    reminder()
     for i, name in enumerate(module_files, 1):
         print(f"\033[93m{i}.\033[0m {name.replace('_', ' ').capitalize()}")
 
@@ -30,4 +34,8 @@ def menu():
             print("Please enter a valid number.")
 
 if __name__ == "__main__":
+    if "--reminder-update" in sys.argv:
+        reminder_update()
+        sys.exit(0)
+
     menu()

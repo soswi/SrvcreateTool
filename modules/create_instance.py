@@ -3,7 +3,8 @@ import sys
 import os
 from pathlib import Path
 
-from utils.utilities import select_user, navigate_path
+from utils.utilities import select_user, navigate_path, add_reminder, reminder
+from utils.tmux_socket import ensure_tmux_socket_dir, TMUXSocketError
 
 TEMPLATES_PATH = Path(__file__).resolve().parent.parent / "templates"
 
@@ -32,10 +33,11 @@ def append_line(file_path: Path, line: str):
         f.write(f"\n{line}")
 
 def run():
+    print("[INFO] This action may require root privileges (sudo) to create tmux socket directories and modify system configuration.")
     user = select_user()
     user_home = Path("/home") / user
     print("Navigate to the folder where the new instance should be created:")
-    target_base = navigate_path(user_home)
+    target_base, folders_to_create = navigate_path(user_home)
 
     template_name = select_template()
     module = importlib.import_module(f"templates.{template_name}")
@@ -56,15 +58,40 @@ def run():
     if confirm != "y":
         print("Cancelled. Restarting selection...\n")
         return run()
+    
+    try:
+        ensure_tmux_socket_dir(user)
+    except TMUXSocketError:
+        print("\n[!] Cannot continue without socket directory.")
+        print("1. Create later and continue")
+        print("2. Don't create and return to menu")
+        print("3. Don't create and exit")
+        option = input("Choose (1/2/3): ").strip()
+        if option == "1":
+            add_reminder(
+                description=f"Set up tmux socket directory for '{user}'",
+                command=f"sudo python3 -c 'from utils.tmux_socket import ensure_tmux_socket_dir; ensure_tmux_socket_dir(\"{user}\")'"
+            )
+            reminder()
+        elif option == "2":
+            print("Returning to main menu.")
+            os.execv("/usr/local/bin/srvtool", ["srvtool"])
+        else:
+            print("Exiting.")
+            sys.exit(1)
 
-    autostart_script = user_home / "scripts" / "automatic_server_startup.sh"
-    autoshutdown_script = user_home / "scripts" / "shutdown_servers.sh"
+    for folder in folders_to_create:
+        if not folder.exists():
+            folder.mkdir(parents=True, exist_ok=True)
 
     if instance_path.exists():
         print("[ERROR] This instance already exists.")
         sys.exit(1)
 
     os.makedirs(instance_path, exist_ok=True)
+
+    autostart_script = user_home / "scripts" / "automatic_server_startup.sh"
+    autoshutdown_script = user_home / "scripts" / "shutdown_servers.sh"
 
     template = template_class(instance_name, target_base, user)
     scripts = {

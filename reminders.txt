@@ -1,0 +1,3 @@
+# Set up tmux socket directory for 'soswi'
+sudo python3 -c 'from utils.tmux_socket import ensure_tmux_socket_dir; ensure_tmux_socket_dir("soswi")'
+
